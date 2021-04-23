@@ -46,6 +46,11 @@ public:
 		// 垂直同期のタイミングを待つ
 		glfwSwapInterval(1);
 
+		// Enable depth test
+		glEnable(GL_DEPTH_TEST);
+		// Accept fragment if it closer to the camera than the former one
+		glDepthFunc(GL_LESS);
+
 		// このインスタンスの this ポインタを記録しておく
 		glfwSetWindowUserPointer(window, this);
 
