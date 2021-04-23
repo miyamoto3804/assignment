@@ -492,7 +492,7 @@ int main() {
 		// モデル行列(ワールド座標系と同じなので単位行列)
 		glm::mat4 modelMatrix = glm::mat4(1.0);
 
-		//// ビュー行列(ここにsolvePnPで得た回転行列を用いる)…座標系が左手系と右手系なことに注意！！！！！！
+		//// ビュー行列(ここにsolvePnPで得た回転行列を用いる)…座標系がX軸に対して180°回転していることに注意！！！！！！
 		glm::mat4 viewMatrix = glm::mat4((float)(rmat.at<double>(0, 0)), (float)(-1 * (rmat.at<double>(1, 0))), (float)(rmat.at<double>(2, 0)), 0.f,
 			(float)(rmat.at<double>(0, 1)), (float)(-1 * (rmat.at<double>(1, 1))), (float)(-1 * (rmat.at<double>(2, 1))), 0.f,
 			(float)(rmat.at<double>(0, 2)), (float)(-1 * (rmat.at<double>(1, 2))), (float)(-1 * (rmat.at<double>(2, 2))), 0.f,
