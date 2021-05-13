@@ -9,6 +9,7 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <opencv2/opencv.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
@@ -24,17 +25,11 @@
 #define ALL_POINTS (IMAGE_NUM*PAT_SIZE)
 #define CHESS_SIZE (20.0)       /* パターン1マスの1辺サイズ[mm] */
 
+// OpenCV-4.5.2
+
 using namespace std;
 
-
-
 /////////////////////////// 描画用データ//////////////////////////
-const double moveScale = 20.0;
-
-const float c = (float)((CHESS_SIZE * PAT_ROW *0.5)/moveScale);
-
-const float elema = -1 * c;
-const float elemb = c;
 
 // 矩形の頂点の位置
 constexpr Object::Vertex rectangleVertex[] =
@@ -46,42 +41,42 @@ constexpr Object::Vertex rectangleVertex[] =
 };
 
 constexpr Object::Vertex g_vertex_buffer_data[] = {
-		{elema,elema,elema ,0.583f,  0.771f,  0.014f},
-		{elema,elema, elemb,0.583f,  0.771f,  0.014f},
-		{elema, elemb, elemb,0.583f,  0.771f,  0.014f},
-		{elemb, elemb,elema,0.822f,  0.569f,  0.201f },
-		{elema,elema,elema ,0.822f,  0.569f,  0.201f},
-		{elema, elemb,elema,0.822f,  0.569f,  0.201f},
-		{elemb,elema, elemb,0.597f,  0.770f,  0.761f},
-		{elema,elema,elema , 0.597f,  0.770f,  0.761f},
-		{elemb,elema,elema,0.597f,  0.770f,  0.761f},
-		{ elemb, elemb,elema,0.483f,  0.596f,  0.789f},
-		{elemb,elema,elema ,0.483f,  0.596f,  0.789f},
-		{elema,elema,elema,0.483f,  0.596f,  0.789f},
-		{elema,elema,elema,0.771f,  0.328f,  0.970f },
-		{elema, elemb, elemb,0.771f,  0.328f,  0.970f},
-		{elema, elemb,elema,0.771f,  0.328f,  0.970f},
-		{ elemb,elema, elemb,0.971f,  0.572f,  0.833f},
-		{elema,elema, elemb,0.971f,  0.572f,  0.833f},
-		{elema,elema,elema,0.971f,  0.572f,  0.833f},
-		{elema, elemb, elemb,0.945f,  0.719f,  0.592f},
-		{elema,elema, elemb,0.945f,  0.719f,  0.592f},
-		{ elemb,elema, elemb,0.945f,  0.719f,  0.592f},
-		{ elemb, elemb, elemb,0.167f,  0.620f,  0.077f},
-		{ elemb,elema,elema,0.167f,  0.620f,  0.077f},
-		{elemb, elemb,elema,0.167f,  0.620f,  0.077f},
-		{ elemb,elema,elema,0.714f,  0.505f,  0.345f},
-		{ elemb, elemb, elemb,0.714f,  0.505f,  0.345f},
-		{ elemb,elema, elemb,0.714f,  0.505f,  0.345f},
-		{ elemb, elemb, elemb,0.302f,  0.455f,  0.848f},
-		{ elemb, elemb,elema,0.302f,  0.455f,  0.848f},
-		{elema, elemb,elema,0.302f,  0.455f,  0.848f},
-		{ elemb, elemb, elemb,0.053f,  0.959f,  0.120f},
-		{elema, elemb,elema,0.053f,  0.959f,  0.120f},
-		{elema, elemb, elemb,0.053f,  0.959f,  0.120f},
-		{ elemb, elemb, elemb,0.820f,  0.883f,  0.371f},
-		{elema, elemb, elemb,0.820f,  0.883f,  0.371f},
-		{ elemb,elema, elemb,0.820f,  0.883f,  0.371f}
+		{0,0,0 ,0.583f,  0.771f,  0.014f},
+		{0,0, 40,0.583f,  0.771f,  0.014f},
+		{0, 40, 40,0.583f,  0.771f,  0.014f},
+		{40, 40,0,0.822f,  0.569f,  0.201f },
+		{0,0,0 ,0.822f,  0.569f,  0.201f},
+		{0, 40,0,0.822f,  0.569f,  0.201f},
+		{40,0, 40,0.597f,  0.770f,  0.761f},
+		{0,0,0 , 0.597f,  0.770f,  0.761f},
+		{40,0,0,0.597f,  0.770f,  0.761f},
+		{ 40, 40,0,0.483f,  0.596f,  0.789f},
+		{40,0,0 ,0.483f,  0.596f,  0.789f},
+		{0,0,0,0.483f,  0.596f,  0.789f},
+		{0,0,0,0.771f,  0.328f,  0.970f },
+		{0, 40, 40,0.771f,  0.328f,  0.970f},
+		{0, 40,0,0.771f,  0.328f,  0.970f},
+		{ 40,0, 40,0.971f,  0.572f,  0.833f},
+		{0,0, 40,0.971f,  0.572f,  0.833f},
+		{0,0,0,0.971f,  0.572f,  0.833f},
+		{0, 40, 40,0.945f,  0.719f,  0.592f},
+		{0,0, 40,0.945f,  0.719f,  0.592f},
+		{ 40,0, 40,0.945f,  0.719f,  0.592f},
+		{ 40, 40, 40,0.167f,  0.620f,  0.077f},
+		{ 40,0,0,0.167f,  0.620f,  0.077f},
+		{40, 40,0,0.167f,  0.620f,  0.077f},
+		{ 40,0,0,0.714f,  0.505f,  0.345f},
+		{ 40, 40, 40,0.714f,  0.505f,  0.345f},
+		{ 40,0, 40,0.714f,  0.505f,  0.345f},
+		{ 40, 40, 40,0.302f,  0.455f,  0.848f},
+		{ 40, 40,0,0.302f,  0.455f,  0.848f},
+		{0, 40,0,0.302f,  0.455f,  0.848f},
+		{ 40, 40, 40,0.053f,  0.959f,  0.120f},
+		{0, 40,0,0.053f,  0.959f,  0.120f},
+		{0, 40, 40,0.053f,  0.959f,  0.120f},
+		{ 40, 40, 40,0.820f,  0.883f,  0.371f},
+		{0, 40, 40,0.820f,  0.883f,  0.371f},
+		{ 40,0, 40,0.820f,  0.883f,  0.371f}
 };
 
 
@@ -228,6 +223,7 @@ GLuint loadProgram(const char *vert, const char *frag)
 }
 
 
+
 // openCVの4×4のcv::Matからglmのglm::mat4への変換
 void fromCV2GLM(const cv::Mat& cvmat, glm::mat4* glmmat) {
 	if (cvmat.cols != 4 || cvmat.rows != 4 || cvmat.type() != CV_32FC1) {
@@ -247,6 +243,32 @@ void fromGLM2CV(const glm::mat4& glmmat, cv::Mat* cvmat) {
 	}
 	memcpy(cvmat->data, glm::value_ptr(glmmat), 16 * sizeof(float));
 	*cvmat = cvmat->t();
+}
+
+//  OpenCVカメラパラメータからOpenGL(GLM)プロジェクション行列を得る関数
+void cameraFrustumRH(cv::Mat camMat, cv::Size camSz, glm::mat4 &projMat, double znear, double zfar)
+{
+	// Load camera parameters
+	double fx = camMat.at<double>(0, 0);
+	double fy = camMat.at<double>(1, 1);
+	double cx = camMat.at<double>(0, 2);
+	double cy = camMat.at<double>(1, 2);
+	double w = camSz.width, h = camSz.height;
+
+	// 参考:https://strawlab.org/2011/11/05/augmented-reality-with-OpenGL
+	// With window_coords=="y_down", we have:
+	// [2 * K00 / width,   -2 * K01 / width,   (width - 2 * K02 + 2 * x0) / width,     0]
+	// [0,                 2 * K11 / height,   (-height + 2 * K12 + 2 * y0) / height,  0]
+	// [0,                 0,                  (-zfar - znear) / (zfar - znear),       -2 * zfar*znear / (zfar - znear)]
+	// [0,                 0,                  -1,                                     0]
+
+
+	glm::mat4 projection(
+		2.0 * fx / w, 0, 0, 0,
+		0, 2.0 * fy / h, 0, 0,
+		1.0 - 2.0 * cx / w, -1.0 + 2.0 * cy / h, -(zfar + znear) / (zfar - znear), -1.0,
+		0, 0, -2.0 * zfar * znear / (zfar - znear), 0);
+	projMat = projection;
 }
 
 ////////////////////////// main ///////////////////////////////
@@ -306,6 +328,9 @@ int main() {
 	// (3)チェスボード（キャリブレーションパターン）のコーナー検出
 
 	cv::VideoCapture cap(0);//デバイスのオープン
+	cap.read(frame);
+	int camWidth = frame.cols;
+	int camHeight = frame.rows;
 	//cap.open(0);//こっちでも良い．
 
 	if (!cap.isOpened())//カメラデバイスが正常にオープンしたか確認．
@@ -395,6 +420,23 @@ int main() {
 
 
 	//////////////姿勢を推定して描画////////////////////
+	//GLfloat bg_vertex_buffer_data[] = {
+	//	.f,0.f,
+	//	camWidth,0.f,
+	//	camWidth,camHeight,
+	//	0.f, camHeight	
+	//};
+
+	static const GLfloat position[][3] =
+	{
+	  { -1.0f, -1.0f,0.999999f},
+	  {  1.0f, -1.0f,0.999999f},
+	  {  1.0f,  1.0f,0.999999f},
+	  { -1.0f,  1.0f,0.999999f}
+	};
+
+	static const int vertices(sizeof position / sizeof position[0]);
+
 
 	// GLFWを初期化する
 	if (glfwInit() == GL_FALSE) {
@@ -406,7 +448,7 @@ int main() {
 	// プログラム終了時の処理を登録する
 	atexit(glfwTerminate);
 
-	// バージョン指定的なやつ・ここではopenGL3.3を選択
+	// バージョン指定的なやつ・ここではopenGL4.6を選択
 	//glfwWindowHint(GLFW_SAMPLES, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -414,13 +456,34 @@ int main() {
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	// ウィンドウを作成する
-	Window window;
+	Window window(camWidth,camHeight);
+
+	glClearDepth(1.0);
+	// Enable depth test
+	glEnable(GL_DEPTH_TEST);
+	// Accept fragment if it closer to the camera than the former one
+	glDepthFunc(GL_LESS);
+
+	// テクスチャを準備する
+	GLuint image;
+	glGenTextures(1, &image);
+	glBindTexture(GL_TEXTURE_RECTANGLE, image);
+	glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGB, camWidth, camHeight, 0, GL_BGR, GL_UNSIGNED_BYTE, NULL);
+	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	
 
 	// プログラムオブジェクトを作成する
 	const GLuint program(loadProgram("point.vert", "point.frag"));
 
+	//　背景のプログラムオブジェクト
+	const GLuint bgprogram(loadProgram("background.vert", "background.frag"));
+
 	// uniform 変数の場所を取得する
 	const GLint mvpLoc(glGetUniformLocation(program, "MVP"));
+	const GLint imgLoc(glGetUniformLocation(bgprogram, "image"));
 
 	//// 図形データを作成する
 	//std::unique_ptr<const Shape> shape(new Shape(2, 4, rectangleVertex));
@@ -428,19 +491,45 @@ int main() {
 	// 図形データを作成する
 	std::unique_ptr<const Shape> shape(new Shape(3, 36, g_vertex_buffer_data));
 
-
 	// 背景色を指定する
-	glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
+	//背景画像の設定部
+	// 頂点配列オブジェクト
+	GLuint vao;
+
+	// 頂点バッファオブジェクト
+	GLuint vbo;
+
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
+
+	glGenBuffers(1, &vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+	glBufferData(GL_ARRAY_BUFFER, sizeof position, position, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glEnableVertexAttribArray(0);
+
+	// Bind our texture in Texture Unit 0
+	glGenTextures(1, &image);
+	glBindTexture(GL_TEXTURE_RECTANGLE, image);
+	// Set our "myTextureSampler" sampler to use Texture Unit 0
+	glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGB, camWidth, camHeight, 0, GL_BGR, GL_UNSIGNED_BYTE, NULL);
+	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	glUniform1i(imgLoc, 0);
 
 	cv::Mat rvec; // 各ビューの回転ベクトル
 	cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1); // 各ビューの並進ベクトル
 	cv::Mat rmat = cv::Mat::eye(3, 3, CV_64FC1);
-	float FoV = 45.0f;
-	//　チェスボードが映る大きさ的に近づけられる限界
-	double shortestDist = 0;// -200くらい
-	// 投影行列
-	glm::mat4 projectionMatrix = glm::perspective(glm::radians(FoV), 4.0f / 3.0f, 0.1f, 100.0f);
+	cv::Mat channels[3];
+	
+	glm::mat4 projectionMatrix;
+	cameraFrustumRH(camMat, cv::Size(camWidth, camHeight), projectionMatrix, 1.0f, 1000.0f);
+
 	/////////////////////////////// 描画ループ /////////////////////////
 
 	while (cap.read(frame) && window) {
@@ -477,16 +566,34 @@ int main() {
 			//フレーム画像を保存する．
 			cv::imwrite("img.png", frame);
 		}
-
-
-
+		
 		// ウィンドウを消去する(GL)
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		cv::flip(frame, frame, 0);
+
+		// 背景用シェーダプログラム
+		glUseProgram(bgprogram);
+
+		glBindVertexArray(vao);
+		// 切り出した画像をテクスチャに転送する
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_RECTANGLE, image);
+		glTexSubImage2D(GL_TEXTURE_RECTANGLE, 0, 0, 0, frame.cols, frame.rows, GL_BGR, GL_UNSIGNED_BYTE, frame.data);
+		
+
+		// 図形の描画
+		glDrawArrays(GL_TRIANGLE_FAN, 0,vertices);
+
+		// 頂点配列オブジェクトの指定解除
+		glBindVertexArray(0);
+
+		
+
+
+
 		// シェーダプログラムの使用開始
 		glUseProgram(program);
-
-
 
 		// MVP(model view projection)行列の作成
 		// モデル行列(ワールド座標系と同じなので単位行列)
@@ -496,11 +603,13 @@ int main() {
 		glm::mat4 viewMatrix = glm::mat4((float)(rmat.at<double>(0, 0)), (float)(-1 * (rmat.at<double>(1, 0))), (float)(rmat.at<double>(2, 0)), 0.f,
 			(float)(rmat.at<double>(0, 1)), (float)(-1 * (rmat.at<double>(1, 1))), (float)(-1 * (rmat.at<double>(2, 1))), 0.f,
 			(float)(rmat.at<double>(0, 2)), (float)(-1 * (rmat.at<double>(1, 2))), (float)(-1 * (rmat.at<double>(2, 2))), 0.f,
-			(float)(tvec.at<double>(0, 0) / moveScale), (float)(-1 * (tvec.at<double>(1, 0) / moveScale)), (float)(-1 * ((tvec.at<double>(2, 0) + shortestDist) / moveScale)), 1.f);
+			(float)tvec.at<double>(0, 0), (float)(-1 * tvec.at<double>(1, 0)), (float)(-1 * tvec.at<double>(2, 0)), 1.f);
 
-		/*glm::mat4 viewMatrix = glm::lookAt(glm::vec3(3, 3, 3), glm::vec3(-3, -3, -3), glm::vec3(0, 1.0, 0));*/
+		//glm::mat4 viewMatrix = glm::lookAt(glm::vec3(100, 100, 100), glm::vec3(-100, -100, -100), glm::vec3(0, 1.0, 0));
 
 		glm::mat4 mvpMatrix = projectionMatrix * viewMatrix * modelMatrix;
+
+		//glm::mat4 mvpMatrix = glm::mat4(1.0);
 
 		// uniform 変数に値を設定する
 		glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, &mvpMatrix[0][0]);
@@ -512,7 +621,6 @@ int main() {
 		// 図形を描画する
 		shape->draw();
 
-
 		// カラーバッファを入れ替える
 		window.swapBuffers();
 
@@ -520,6 +628,177 @@ int main() {
 	cv::destroyAllWindows();// ウィンドウを閉じる
 
 
+
 	return 0;
 
 }
+
+
+
+
+//
+//
+//
+//
+/////////////////////////// てすと  ///////////////////////////////
+//
+//
+//cv::VideoCapture cap(0); // 使用する動画
+//int numberOfFrame = 0; // フレーム番号
+//const int lastFrame = 100; // 終わりのフレーム番号
+//int WIDTH , HEIGHT; // 画像のサイズ
+//int tt;
+//cv::Mat img; // 画像の宣言
+//
+//cv::Mat rvec; // 各ビューの回転ベクトル
+//cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1); // 各ビューの並進ベクトル
+//cv::Mat rmat = cv::Mat::eye(3, 3, CV_64FC1);
+//cv::Mat channels[3];
+//cv::Mat flipped;
+//float FoV = 45.0f;
+////チェスボードが映る大きさ的に近づけられる限界
+//double shortestDist = 0;// -200くらい
+// //投影行列
+//glm::mat4 projectionMatrix = glm::perspective(glm::radians(FoV), 4.0f / 3.0f, 0.1f, 1000.0f);
+//
+//static void init()
+//{
+//	tt = 0;
+//	cap.read(img);
+//	WIDTH = img.cols;
+//	HEIGHT = img.rows;
+//
+//	
+//	
+//}
+//
+//
+//int main(int argc, char * argv[])
+//{
+//	glfwInit();
+//
+//	init();
+//
+//	GLsizei capture_width(GLsizei(cap.get(cv::CAP_PROP_FRAME_WIDTH)));
+//	GLsizei capture_height(GLsizei(cap.get(cv::CAP_PROP_FRAME_HEIGHT)));
+//
+//	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Dynamic Projection Mapping", NULL, NULL);
+//
+//	glfwMakeContextCurrent(window);
+//
+//
+//	// GLEW を初期化する
+//	glewExperimental = GL_TRUE;
+//	if (glewInit() != GLEW_OK)
+//	{
+//		// GLEW の初期化に失敗した
+//		std::cerr << "Can't initialize GLEW" << std::endl;
+//		exit(1);
+//	}
+//
+//
+//		// バージョン指定的なやつ・ここではopenGL3.3を選択
+//	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+//	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+//	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
+//	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+//
+//	
+//	glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
+//
+//	// 頂点配列オブジェクト
+//	GLuint vao;
+//
+//	// 頂点バッファオブジェクト
+//	GLuint vbo;
+//
+//	glGenVertexArrays(1, &vao);
+//	glBindVertexArray(vao);
+//
+//	glGenBuffers(1, &vbo);
+//	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+//
+//	// [-1, 1] の正方形
+//	static const GLfloat position[][2] =
+//	{
+//	  { -1.0f, -1.0f },
+//	  {  1.0f, -1.0f },
+//	  {  1.0f,  1.0f },
+//	  { -1.0f,  1.0f }
+//	};
+//	static const int vertices(sizeof position / sizeof position[0]);
+//	glBufferData(GL_ARRAY_BUFFER, sizeof position, position, GL_STATIC_DRAW);
+//	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+//	glEnableVertexAttribArray(0);
+//
+//	// テクスチャを準備する
+//	GLuint image;
+//	glGenTextures(1, &image);
+//	glBindTexture(GL_TEXTURE_RECTANGLE, image);
+//	glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGB, WIDTH, HEIGHT, 0, GL_BGR, GL_UNSIGNED_BYTE, NULL);
+//	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+//	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+//	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+//
+//	// プログラムオブジェクトを作成する
+//	const GLuint bgprogram(loadBackGroundProgram("background.vert", "background.frag"));
+//
+//	const GLint imgLoc(glGetUniformLocation(program, "image"));
+//
+//
+//
+//	while (!glfwWindowShouldClose(window)) {
+//	
+//		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+//
+//
+//		cap.grab(); // 画像の読み込み
+//
+//		cap.retrieve(img, 3);
+//
+//		cv::imshow("win", img);//画像を表示．
+//
+//		// 切り出した画像をテクスチャに転送する
+//		cv::flip(img, flipped, 0);
+//		glBindTexture(GL_TEXTURE_RECTANGLE, image);
+//		glTexSubImage2D(GL_TEXTURE_RECTANGLE, 0, 0, 0, img.cols, flipped.rows, GL_BGR, GL_UNSIGNED_BYTE, flipped.data);
+//
+//	////////////////////////////////////////////
+//	//    画像処理などOpenCVによる操作        //
+//	////////////////////////////////////////////
+//
+//
+//		////////////////////////////////////////////
+//		// テクスチャマッピングなどOpenGLによる操作  //
+//		////////////////////////////////////////////
+//
+//		// シェーダプログラムの使用開始
+//		glUseProgram(program);
+//
+//		glUniform1i(imgLoc, 0);
+//
+//		// テクスチャユニットとテクスチャの指定
+//		glActiveTexture(GL_TEXTURE0);
+//		glBindTexture(GL_TEXTURE_RECTANGLE, image);
+//		
+//		 //ここで描画処理を行う
+//
+//		// 描画に使う頂点配列オブジェクトの指定
+//		glBindVertexArray(vao);
+//
+//		// 図形の描画
+//		glDrawArrays(GL_TRIANGLE_FAN, 0, vertices);
+//
+//		// 頂点配列オブジェクトの指定解除
+//		glBindVertexArray(0);
+//		
+//		glfwSwapBuffers(window);
+//		glfwPollEvents();
+//	}
+//
+//	glfwDestroyWindow(window);
+//	glfwTerminate();
+//
+//	return 0;
+//}
