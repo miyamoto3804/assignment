@@ -25,21 +25,15 @@
 #define ALL_POINTS (IMAGE_NUM*PAT_SIZE)
 #define CHESS_SIZE (20.0)       /* パターン1マスの1辺サイズ[mm] */
 
+#define ENABLE_CALIBRATION (0)
+
 // OpenCV-4.5.2
 
 using namespace std;
 
 /////////////////////////// 描画用データ//////////////////////////
 
-// 矩形の頂点の位置
-constexpr Object::Vertex rectangleVertex[] =
-{
- { -0.5f, -0.5f },
- { 0.5f, -0.5f },
- { 0.5f, 0.5f },
- { -0.5f, 0.5f }
-};
-
+// 原点に一頂点のある40.0mm四方の立方体
 constexpr Object::Vertex g_vertex_buffer_data[] = {
 		{0,0,0 ,0.583f,  0.771f,  0.014f},
 		{0,0, 40,0.583f,  0.771f,  0.014f},
@@ -222,29 +216,6 @@ GLuint loadProgram(const char *vert, const char *frag)
 	return vstat && fstat ? createProgram(vsrc.data(), fsrc.data()) : 0;
 }
 
-
-
-// openCVの4×4のcv::Matからglmのglm::mat4への変換
-void fromCV2GLM(const cv::Mat& cvmat, glm::mat4* glmmat) {
-	if (cvmat.cols != 4 || cvmat.rows != 4 || cvmat.type() != CV_32FC1) {
-		cout << "Matrix conversion error!" << endl;
-		return;
-	}
-	memcpy(glm::value_ptr(*glmmat), cvmat.data, 16 * sizeof(float));
-	*glmmat = glm::transpose(*glmmat);
-}
-
-
-
-// glmのglm::mat4からopenCVの4×4のcv::Matへの変換
-void fromGLM2CV(const glm::mat4& glmmat, cv::Mat* cvmat) {
-	if (cvmat->cols != 4 || cvmat->rows != 4) {
-		(*cvmat) = cv::Mat(4, 4, CV_32F);
-	}
-	memcpy(cvmat->data, glm::value_ptr(glmmat), 16 * sizeof(float));
-	*cvmat = cvmat->t();
-}
-
 //  OpenCVカメラパラメータからOpenGL(GLM)プロジェクション行列を得る関数
 void cameraFrustumRH(cv::Mat camMat, cv::Size camSz, glm::mat4 &projMat, double znear, double zfar)
 {
@@ -284,7 +255,6 @@ int main() {
 	int i, j, k;
 	int cornerCount, found;
 	int p_count[IMAGE_NUM];
-	// cv::Mat src_img[IMAGE_NUM];
 	vector<cv::Mat> srcImages;
 	cv::Size pattern_size = cv::Size2i(PAT_COL, PAT_ROW);
 	vector<cv::Point2f> corners;
@@ -300,7 +270,11 @@ int main() {
 		-9.3317994274449774e+00);
 	vector<cv::Mat> rvecs, tvecs; // 各ビューの回転ベクトルと並進ベクトル
 
+	cv::Mat rvec; // 各ビューの回転ベクトル
+	cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1); // 各ビューの並進ベクトル
+	cv::Mat rmat = cv::Mat::eye(3, 3, CV_64FC1);
 
+	glm::mat4 projectionMatrix;
 
 	// (2)3次元空間座標の設定(チェスボードの間隔が既知なので)
 
@@ -317,14 +291,7 @@ int main() {
 		}
 	}
 
-	// とる画像分用意
-	vector<vector<cv::Point3f>> objPoints;
-	for (i = 0; i < IMAGE_NUM; i++)
-	{
-		objPoints.push_back(object);
-	}
-
-
+	
 	// (3)チェスボード（キャリブレーションパターン）のコーナー検出
 
 	cv::VideoCapture cap(0);//デバイスのオープン
@@ -339,94 +306,99 @@ int main() {
 		return -1;
 	}
 
-	//cv::FileStorage fs2("a.xml", cv::FileStorage::READ);
-	//if (!fs2.isOpened()) {
-	//	cout << "File can not be opened." << endl;
-	//	
-	//	// 規定枚数とるまでループ
-	//	while (foundNum < IMAGE_NUM) {
-	//		cap.read(frame);
-	//		cv::imshow("win", frame);//画像を表示．
-
-
-	//		auto found = cv::findChessboardCorners(frame, pattern_size, corners);
-	//		if (found)
-	//		{
-	//			cout << "detected corner:" << ++foundNum << endl;
-	//			srcImages.push_back(frame);
-	//			// (4)コーナー位置をサブピクセル精度に修正，描画
-	//			cv::Mat src_gray = cv::Mat(srcImages[foundNum - 1].size(), CV_8UC1);
-	//			cv::cvtColor(srcImages[foundNum - 1], src_gray, cv::COLOR_BGR2GRAY);
-	//			cv::find4QuadCornerSubpix(src_gray, corners, cv::Size(3, 3));
-	//			cv::drawChessboardCorners(srcImages[foundNum - 1], pattern_size, corners, found);
-	//			imgPoints.push_back(corners);
-
-	//		}
+#if ENABLE_CALIBRATION
+	// とる画像分用意
+	vector<vector<cv::Point3f>> objPoints;
+	for (i = 0; i < IMAGE_NUM; i++)
+	{
+		objPoints.push_back(object);
+	}
 
 
 
-	//		const int key = cv::waitKey(1);
-	//		if (key == 'q'/*113*/)//qボタンが押されたとき
-	//		{
-	//			break;//whileループから抜ける．
-	//		}
-	//		else if (key == 's'/*115*/)//sが押されたとき
-	//		{
-	//			//フレーム画像を保存する．
-	//			cv::imwrite("img.png", frame);
-	//		}
-	//	}
-	//	cv::destroyAllWindows();// ウィンドウを閉じる．
+	cv::FileStorage fs2("parameter.xml", cv::FileStorage::READ);
+	if (!fs2.isOpened()) {
+		cout << "File can not be opened." << endl;
+		
+		// 規定枚数とるまでループ
+		while (foundNum < IMAGE_NUM) {
+			cap.read(frame);
+			cv::imshow("win", frame);//画像を表示．
 
 
-	//	// (5)内部パラメータ，歪み係数の推定
+			auto found = cv::findChessboardCorners(frame, pattern_size, corners);
+			if (found)
+			{
+				cout << "detected corner:" << ++foundNum << endl;
+				srcImages.push_back(frame);
+				// (4)コーナー位置をサブピクセル精度に修正，描画
+				cv::Mat src_gray = cv::Mat(srcImages[foundNum - 1].size(), CV_8UC1);
+				cv::cvtColor(srcImages[foundNum - 1], src_gray, cv::COLOR_BGR2GRAY);
+				cv::find4QuadCornerSubpix(src_gray, corners, cv::Size(3, 3));
+				cv::drawChessboardCorners(srcImages[foundNum - 1], pattern_size, corners, found);
+				imgPoints.push_back(corners);
 
-	//	cv::calibrateCamera(
-	//		objPoints,
-	//		imgPoints,
-	//		srcImages[0].size(),
-	//		camMat,
-	//		distCoefs,
-	//		rvecs,
-	//		tvecs
-	//	);
-
-	//	//書き込みでXMLファイルを開く
-	//	cv::FileStorage fs("parameter.xml", cv::FileStorage::WRITE);
-	//	if (!fs.isOpened()) {
-	//		cout << "File can not be opened." << endl;
-	//		return -1;
-	//	}
-
-	//	string camMatName = "camMat";
-	//	string distCoefsName = "distCoefs";
-
-	//	fs << camMatName << camMat << distCoefsName << distCoefs;
-
-	//	//書き出し
-	//	fs.release();
-
-	//}
-	//else {
-	//	fs2["camMat"] >> camMat;
-	//	fs2["distCoefs"] >> distCoefs;
-
-	//	//書き出し
-	//	fs2.release();
-	//}
-	//
-	//
+			}
 
 
+
+			const int key = cv::waitKey(1);
+			if (key == 'q'/*113*/)//qボタンが押されたとき
+			{
+				break;//whileループから抜ける．
+			}
+			else if (key == 's'/*115*/)//sが押されたとき
+			{
+				//フレーム画像を保存する．
+				cv::imwrite("img.png", frame);
+			}
+		}
+		cv::destroyAllWindows();// ウィンドウを閉じる．
+
+
+		// (5)内部パラメータ，歪み係数の推定
+
+		cv::calibrateCamera(
+			objPoints,
+			imgPoints,
+			srcImages[0].size(),
+			camMat,
+			distCoefs,
+			rvecs,
+			tvecs
+		);
+
+		//書き込みでXMLファイルを開く
+		cv::FileStorage fs("parameter.xml", cv::FileStorage::WRITE);
+		if (!fs.isOpened()) {
+			cout << "File can not be opened." << endl;
+			return -1;
+		}
+
+		string camMatName = "camMat";
+		string distCoefsName = "distCoefs";
+
+		fs << camMatName << camMat << distCoefsName << distCoefs;
+
+		//書き出し
+		fs.release();
+
+	}
+	else {
+		fs2["camMat"] >> camMat;
+		fs2["distCoefs"] >> distCoefs;
+
+		//書き出し
+		fs2.release();
+	}
+	
+	
+
+#endif
 
 	//////////////姿勢を推定して描画////////////////////
-	//GLfloat bg_vertex_buffer_data[] = {
-	//	.f,0.f,
-	//	camWidth,0.f,
-	//	camWidth,camHeight,
-	//	0.f, camHeight	
-	//};
 
+	//背景テクスチャ貼り付け用の正方形	
 	static const GLfloat position[][3] =
 	{
 	  { -1.0f, -1.0f,0.999999f},
@@ -435,6 +407,7 @@ int main() {
 	  { -1.0f,  1.0f,0.999999f}
 	};
 
+	//頂点数
 	static const int vertices(sizeof position / sizeof position[0]);
 
 
@@ -448,7 +421,7 @@ int main() {
 	// プログラム終了時の処理を登録する
 	atexit(glfwTerminate);
 
-	// バージョン指定的なやつ・ここではopenGL4.6を選択
+	// バージョン指定的なやつ・ここではopenGL3.3を選択
 	//glfwWindowHint(GLFW_SAMPLES, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -485,9 +458,6 @@ int main() {
 	const GLint mvpLoc(glGetUniformLocation(program, "MVP"));
 	const GLint imgLoc(glGetUniformLocation(bgprogram, "image"));
 
-	//// 図形データを作成する
-	//std::unique_ptr<const Shape> shape(new Shape(2, 4, rectangleVertex));
-
 	// 図形データを作成する
 	std::unique_ptr<const Shape> shape(new Shape(3, 36, g_vertex_buffer_data));
 
@@ -522,21 +492,18 @@ int main() {
 	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 	glUniform1i(imgLoc, 0);
 
-	cv::Mat rvec; // 各ビューの回転ベクトル
-	cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1); // 各ビューの並進ベクトル
-	cv::Mat rmat = cv::Mat::eye(3, 3, CV_64FC1);
-	cv::Mat channels[3];
 	
-	glm::mat4 projectionMatrix;
+	//キャリブレーションパラメータから透視投影行列を計算
 	cameraFrustumRH(camMat, cv::Size(camWidth, camHeight), projectionMatrix, 1.0f, 1000.0f);
 
 	/////////////////////////////// 描画ループ /////////////////////////
 
 	while (cap.read(frame) && window) {
-		//
-		//取得したフレーム画像に対して，グレースケール変換や2値化などの処理を書き込む．
-		//
 
+		// ウィンドウを消去する(GL)
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		//　チェスボードのコーナー探索
 
 		auto found = cv::findChessboardCorners(frame, pattern_size, corners);
 		if (found)
@@ -552,6 +519,30 @@ int main() {
 			// 回転ベクトル→回転行列
 			cv::Rodrigues(rvec, rmat);
 
+			// シェーダプログラムの使用開始
+			glUseProgram(program);
+
+			// MVP(model view projection)行列の作成
+			// モデル行列(ワールド座標系と同じなので単位行列)
+			glm::mat4 modelMatrix = glm::mat4(1.0);
+
+			//// ビュー行列(ここにsolvePnPで得た回転行列を用いる)…座標系がX軸に対して180°回転していることに注意！！！！！！
+			glm::mat4 viewMatrix = glm::mat4((float)(rmat.at<double>(0, 0)), (float)(-1 * (rmat.at<double>(1, 0))), (float)(rmat.at<double>(2, 0)), 0.f,
+				(float)(rmat.at<double>(0, 1)), (float)(-1 * (rmat.at<double>(1, 1))), (float)(-1 * (rmat.at<double>(2, 1))), 0.f,
+				(float)(rmat.at<double>(0, 2)), (float)(-1 * (rmat.at<double>(1, 2))), (float)(-1 * (rmat.at<double>(2, 2))), 0.f,
+				(float)tvec.at<double>(0, 0), (float)(-1 * tvec.at<double>(1, 0)), (float)(-1 * tvec.at<double>(2, 0)), 1.f);
+
+			//glm::mat4 viewMatrix = glm::lookAt(glm::vec3(100, 100, 100), glm::vec3(-100, -100, -100), glm::vec3(0, 1.0, 0));
+
+			glm::mat4 mvpMatrix = projectionMatrix * viewMatrix * modelMatrix;
+
+			//glm::mat4 mvpMatrix = glm::mat4(1.0);
+
+			// uniform 変数に値を設定する
+			glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, &mvpMatrix[0][0]);
+
+			// 図形を描画する
+			shape->draw();
 		}
 
 		cv::imshow("win", frame);//画像を表示．
@@ -566,60 +557,31 @@ int main() {
 			//フレーム画像を保存する．
 			cv::imwrite("img.png", frame);
 		}
+
+		cout << window.getBFlag() << endl;
+
+		if (window.getBFlag()) {
+
+
+			cv::flip(frame, frame, 0);
+
+			// 背景用シェーダプログラム
+			glUseProgram(bgprogram);
+
+			glBindVertexArray(vao);
+			// 切り出した画像をテクスチャに転送する
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_RECTANGLE, image);
+			glTexSubImage2D(GL_TEXTURE_RECTANGLE, 0, 0, 0, frame.cols, frame.rows, GL_BGR, GL_UNSIGNED_BYTE, frame.data);
+
+			// 背景の描画
+			glDrawArrays(GL_TRIANGLE_FAN, 0, vertices);
+
+			// 頂点配列オブジェクトの指定解除
+			glBindVertexArray(0);
+		}
+
 		
-		// ウィンドウを消去する(GL)
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		cv::flip(frame, frame, 0);
-
-		// 背景用シェーダプログラム
-		glUseProgram(bgprogram);
-
-		glBindVertexArray(vao);
-		// 切り出した画像をテクスチャに転送する
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_RECTANGLE, image);
-		glTexSubImage2D(GL_TEXTURE_RECTANGLE, 0, 0, 0, frame.cols, frame.rows, GL_BGR, GL_UNSIGNED_BYTE, frame.data);
-		
-
-		// 図形の描画
-		glDrawArrays(GL_TRIANGLE_FAN, 0,vertices);
-
-		// 頂点配列オブジェクトの指定解除
-		glBindVertexArray(0);
-
-		
-
-
-
-		// シェーダプログラムの使用開始
-		glUseProgram(program);
-
-		// MVP(model view projection)行列の作成
-		// モデル行列(ワールド座標系と同じなので単位行列)
-		glm::mat4 modelMatrix = glm::mat4(1.0);
-
-		//// ビュー行列(ここにsolvePnPで得た回転行列を用いる)…座標系がX軸に対して180°回転していることに注意！！！！！！
-		glm::mat4 viewMatrix = glm::mat4((float)(rmat.at<double>(0, 0)), (float)(-1 * (rmat.at<double>(1, 0))), (float)(rmat.at<double>(2, 0)), 0.f,
-			(float)(rmat.at<double>(0, 1)), (float)(-1 * (rmat.at<double>(1, 1))), (float)(-1 * (rmat.at<double>(2, 1))), 0.f,
-			(float)(rmat.at<double>(0, 2)), (float)(-1 * (rmat.at<double>(1, 2))), (float)(-1 * (rmat.at<double>(2, 2))), 0.f,
-			(float)tvec.at<double>(0, 0), (float)(-1 * tvec.at<double>(1, 0)), (float)(-1 * tvec.at<double>(2, 0)), 1.f);
-
-		//glm::mat4 viewMatrix = glm::lookAt(glm::vec3(100, 100, 100), glm::vec3(-100, -100, -100), glm::vec3(0, 1.0, 0));
-
-		glm::mat4 mvpMatrix = projectionMatrix * viewMatrix * modelMatrix;
-
-		//glm::mat4 mvpMatrix = glm::mat4(1.0);
-
-		// uniform 変数に値を設定する
-		glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, &mvpMatrix[0][0]);
-
-
-		//
-		// ここで描画処理を行う
-		//
-		// 図形を描画する
-		shape->draw();
 
 		// カラーバッファを入れ替える
 		window.swapBuffers();
@@ -627,178 +589,9 @@ int main() {
 	}
 	cv::destroyAllWindows();// ウィンドウを閉じる
 
-
-
 	return 0;
 
 }
 
 
 
-
-//
-//
-//
-//
-/////////////////////////// てすと  ///////////////////////////////
-//
-//
-//cv::VideoCapture cap(0); // 使用する動画
-//int numberOfFrame = 0; // フレーム番号
-//const int lastFrame = 100; // 終わりのフレーム番号
-//int WIDTH , HEIGHT; // 画像のサイズ
-//int tt;
-//cv::Mat img; // 画像の宣言
-//
-//cv::Mat rvec; // 各ビューの回転ベクトル
-//cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1); // 各ビューの並進ベクトル
-//cv::Mat rmat = cv::Mat::eye(3, 3, CV_64FC1);
-//cv::Mat channels[3];
-//cv::Mat flipped;
-//float FoV = 45.0f;
-////チェスボードが映る大きさ的に近づけられる限界
-//double shortestDist = 0;// -200くらい
-// //投影行列
-//glm::mat4 projectionMatrix = glm::perspective(glm::radians(FoV), 4.0f / 3.0f, 0.1f, 1000.0f);
-//
-//static void init()
-//{
-//	tt = 0;
-//	cap.read(img);
-//	WIDTH = img.cols;
-//	HEIGHT = img.rows;
-//
-//	
-//	
-//}
-//
-//
-//int main(int argc, char * argv[])
-//{
-//	glfwInit();
-//
-//	init();
-//
-//	GLsizei capture_width(GLsizei(cap.get(cv::CAP_PROP_FRAME_WIDTH)));
-//	GLsizei capture_height(GLsizei(cap.get(cv::CAP_PROP_FRAME_HEIGHT)));
-//
-//	GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "Dynamic Projection Mapping", NULL, NULL);
-//
-//	glfwMakeContextCurrent(window);
-//
-//
-//	// GLEW を初期化する
-//	glewExperimental = GL_TRUE;
-//	if (glewInit() != GLEW_OK)
-//	{
-//		// GLEW の初期化に失敗した
-//		std::cerr << "Can't initialize GLEW" << std::endl;
-//		exit(1);
-//	}
-//
-//
-//		// バージョン指定的なやつ・ここではopenGL3.3を選択
-//	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-//	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-//	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
-//	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-//
-//	
-//	glClearColor(1.0f, 1.0f, 1.0f, 0.0f);
-//
-//	// 頂点配列オブジェクト
-//	GLuint vao;
-//
-//	// 頂点バッファオブジェクト
-//	GLuint vbo;
-//
-//	glGenVertexArrays(1, &vao);
-//	glBindVertexArray(vao);
-//
-//	glGenBuffers(1, &vbo);
-//	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-//
-//	// [-1, 1] の正方形
-//	static const GLfloat position[][2] =
-//	{
-//	  { -1.0f, -1.0f },
-//	  {  1.0f, -1.0f },
-//	  {  1.0f,  1.0f },
-//	  { -1.0f,  1.0f }
-//	};
-//	static const int vertices(sizeof position / sizeof position[0]);
-//	glBufferData(GL_ARRAY_BUFFER, sizeof position, position, GL_STATIC_DRAW);
-//	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
-//	glEnableVertexAttribArray(0);
-//
-//	// テクスチャを準備する
-//	GLuint image;
-//	glGenTextures(1, &image);
-//	glBindTexture(GL_TEXTURE_RECTANGLE, image);
-//	glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGB, WIDTH, HEIGHT, 0, GL_BGR, GL_UNSIGNED_BYTE, NULL);
-//	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-//	glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-//
-//	// プログラムオブジェクトを作成する
-//	const GLuint bgprogram(loadBackGroundProgram("background.vert", "background.frag"));
-//
-//	const GLint imgLoc(glGetUniformLocation(program, "image"));
-//
-//
-//
-//	while (!glfwWindowShouldClose(window)) {
-//	
-//		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-//
-//
-//		cap.grab(); // 画像の読み込み
-//
-//		cap.retrieve(img, 3);
-//
-//		cv::imshow("win", img);//画像を表示．
-//
-//		// 切り出した画像をテクスチャに転送する
-//		cv::flip(img, flipped, 0);
-//		glBindTexture(GL_TEXTURE_RECTANGLE, image);
-//		glTexSubImage2D(GL_TEXTURE_RECTANGLE, 0, 0, 0, img.cols, flipped.rows, GL_BGR, GL_UNSIGNED_BYTE, flipped.data);
-//
-//	////////////////////////////////////////////
-//	//    画像処理などOpenCVによる操作        //
-//	////////////////////////////////////////////
-//
-//
-//		////////////////////////////////////////////
-//		// テクスチャマッピングなどOpenGLによる操作  //
-//		////////////////////////////////////////////
-//
-//		// シェーダプログラムの使用開始
-//		glUseProgram(program);
-//
-//		glUniform1i(imgLoc, 0);
-//
-//		// テクスチャユニットとテクスチャの指定
-//		glActiveTexture(GL_TEXTURE0);
-//		glBindTexture(GL_TEXTURE_RECTANGLE, image);
-//		
-//		 //ここで描画処理を行う
-//
-//		// 描画に使う頂点配列オブジェクトの指定
-//		glBindVertexArray(vao);
-//
-//		// 図形の描画
-//		glDrawArrays(GL_TRIANGLE_FAN, 0, vertices);
-//
-//		// 頂点配列オブジェクトの指定解除
-//		glBindVertexArray(0);
-//		
-//		glfwSwapBuffers(window);
-//		glfwPollEvents();
-//	}
-//
-//	glfwDestroyWindow(window);
-//	glfwTerminate();
-//
-//	return 0;
-//}
