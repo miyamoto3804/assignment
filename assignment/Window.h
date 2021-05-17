@@ -21,6 +21,8 @@ class Window
 
 	int keyStatus;
 
+	bool bFlag = true;
+
 public:
 	// コンストラクタ(：の後ろはメンバイニシャライザってやつ)
 	Window(int width = 1024, int height = 768, const char *title = "Hello!")
@@ -122,6 +124,10 @@ public:
 			// キーの状態を保存
 			instance->keyStatus = action;
 		}
+
+		if (key == GLFW_KEY_B && action == GLFW_PRESS) { 
+			instance->bFlag = !instance->bFlag;
+		}
 	}
 
 	// ウィンドウのサイズを取り出す
@@ -129,4 +135,6 @@ public:
 
 	// 縦横比を取り出す
 	GLfloat getScale() const { return scale; }
+
+	bool getBFlag() const { return bFlag; };
 };

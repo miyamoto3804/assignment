@@ -29,6 +29,12 @@
     <None Include="point.frag">
       <Filter>ソース ファイル\shader</Filter>
     </None>
+    <None Include="background.frag">
+      <Filter>ソース ファイル\shader</Filter>
+    </None>
+    <None Include="background.vert">
+      <Filter>ソース ファイル\shader</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Object.h">
