@@ -183,7 +183,7 @@ void cameraFrustumRH(cv::Mat camMat, cv::Size camSz, glm::mat4 &projMat, double 
 }
 
 
-void saveImage(const unsigned int imageWidth, const unsigned int imageHeight)
+cv::Mat saveImage(const unsigned int imageWidth, const unsigned int imageHeight)
 {
 	const unsigned int channelNum = 3; // RGB卅日3, RGBA卅日4
 	void* dataBuffer = NULL;
@@ -222,5 +222,6 @@ void saveImage(const unsigned int imageWidth, const unsigned int imageHeight)
 		}
 	}
 
-	cv::imwrite(fname.c_str(), outImage);
+	//cv::imwrite(fname.c_str(), outImage);
+	return outImage;
 }

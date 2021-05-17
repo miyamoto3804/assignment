@@ -94,6 +94,7 @@ int main() {
 	vector<vector<cv::Point2f>> imgPoints;
 	int foundNum = 0;
 	cv::Mat frame; //取得したフレーム
+	cv::Mat imgFromGL;
 	// カメラ内部パラメータ行列(うまく読み込めないのでべたうち)
 	cv::Mat camMat = (cv::Mat_<double>(3, 3) << 7.8796863296351978e+02, 0., 3.0976603626934264e+02, 0.,
 		7.8512474403498004e+02, 2.4196530938772287e+02, 0., 0., 1.);
@@ -376,6 +377,10 @@ int main() {
 
 			// 図形を描画する
 			shape->draw();
+
+			imgFromGL = saveImage(camWidth, camHeight);
+
+			cv::imshow("reconstruction from GL", imgFromGL);
 		}
 
 		cv::imshow("win", frame);//画像を表示．
@@ -415,13 +420,13 @@ int main() {
 			glBindVertexArray(0);
 		}
 
-		
-
 		// カラーバッファを入れ替える
 		window.swapBuffers();
 
 	}
 	cv::destroyAllWindows();// ウィンドウを閉じる
+
+
 
 	return 0;
 

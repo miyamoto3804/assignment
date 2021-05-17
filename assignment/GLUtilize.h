@@ -42,4 +42,4 @@ GLuint loadProgram(const char *vert, const char *frag);
 //  OpenCVカメラパラメータからOpenGL(GLM)プロジェクション行列を得る関数
 void cameraFrustumRH(cv::Mat camMat, cv::Size camSz, glm::mat4 &projMat, double znear, double zfar);
 
-void saveImage(const unsigned int imageWidth, const unsigned int imageHeight);
+cv::Mat saveImage(const unsigned int imageWidth, const unsigned int imageHeight);
